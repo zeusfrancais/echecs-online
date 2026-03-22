@@ -103,12 +103,17 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('move', ({ gameId, from, to, promoType }) => {
+ socket.on('move', ({ gameId, from, to, promoType }) => {
+    console.log('move reçu', gameId, 'games connus:', Object.keys(games));
     const game = games[gameId];
-    if (!game) return;
+    if (!game) {
+        console.log('partie introuvable!');
+        return;
+    }
     const opponentId = game.white === socket.id ? game.black : game.white;
+    console.log('envoi coup à', opponentId);
     io.to(opponentId).emit('opponent-move', { from, to, promoType });
-  });
+});
 
   socket.on('disconnect', () => {
     delete onlineUsers[socket.username];
