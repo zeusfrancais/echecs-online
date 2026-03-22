@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Partie — Échecs Online</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="app">
+    <div id="status">
+      <span id="turn-dot"></span>
+      <span id="status-text">Chargement...</span>
+    </div>
+    <div id="opponent-info">Adversaire : <strong id="opponent-name"></strong></div>
+
+    <div id="board-wrap">
+      <div id="ranks"></div>
+      <div>
+        <div id="board-container">
+          <div id="board"></div>
+          <div id="promo-overlay">
+            <div id="promo-box">
+              <div id="promo-title">Choisissez la pièce</div>
+              <div id="promo-pieces"></div>
+            </div>
+          </div>
+        </div>
+        <div id="files"></div>
+      </div>
+    </div>
+
+    <div id="captured-row">
+      <span id="cap-b"></span>
+      <span id="cap-w"></span>
+    </div>
+    <button id="btn-lobby" onclick="window.location.href='lobby.html'">Retour au lobby</button>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const token = localStorage.getItem('token');
+    const myColor = localStorage.getItem('color');
+    const gameId = localStorage.getItem('gameId');
+    const opponent = localStorage.getItem('opponent');
+    if (!token) window.location.href = 'index.html';
+
+    document.getElementById('opponent-name').textContent = opponent;
+
+    const socket = io({ auth: { token } });
+
+    socket.on('opponent-move', ({ from, to, promoType }) => {
+      doMove(from, to, promoType, true);
+    });
+
+    const SYM={wK:'♔',wQ:'♕',wR:'♖',wB:'♗',wN:'♘',wP:'♙',bK:'♚',bQ:'♛',bR:'♜',bB:'♝',bN:'♞',bP:'♟'};
+    const INIT=['bR','bN','bB','bQ','bK','bB','bN','bR','bP','bP','bP','bP','bP','bP','bP','bP',null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,'wP','wP','wP','wP','wP','wP','wP','wP','wR','wN','wB','wQ','wK','wB','wN','wR'];
+    let board=[...INIT],turn='w',sel=null,poss=[],lastMove=[],capW=[],capB=[],castling={wK:true,wQR:true,wKR:true,bK:true,bQR:true,bKR:true},enPassant=null,gameOver=false;
+
+    function col(p){return p?p[0]:null}
+    function typ(p){return p?p[1]:null}
+    function inB(r,c){return r>=0&&r<8&&c>=0&&c<8}
+
+    function rawMoves(b,idx,ep){
+      const p=b[idx];if(!p)return[];
+      const r=Math.floor(idx/8),c=idx%8,cl=col(p),t=typ(p),moves=[];
+      const add=(nr,nc)=>{if(inB(nr,nc))moves.push(nr*8+nc)};
+      if(t==='P'){const d=cl==='w'?-1:1,st=cl==='w'?6:1;if(!b[(r+d)*8+c]){add(r+d,c);if(r===st&&!b[(r+d)*8+c]&&!b[(r+2*d)*8+c])add(r+2*d,c);}for(const dc of[-1,1])if(inB(r+d,c+dc)){const ti=(r+d)*8+(c+dc);if((b[ti]&&col(b[ti])!==cl)||ep===ti)moves.push(ti);}}
+      else if(t==='N'){for(const[dr,dc]of[[-2,-1],[-2,1],[-1,-2],[-1,2],[1,-2],[1,2],[2,-1],[2,1]]){const ni=(r+dr)*8+(c+dc);if(inB(r+dr,c+dc)&&col(b[ni])!==cl)moves.push(ni);}}
+      else if(t==='K'){for(const[dr,dc]of[[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]]){const ni=(r+dr)*8+(c+dc);if(inB(r+dr,c+dc)&&col(b[ni])!==cl)moves.push(ni);}}
+      else{const ds={B:[[-1,-1],[-1,1],[1,-1],[1,1]],R:[[-1,0],[1,0],[0,-1],[0,1]],Q:[[-1,-1],[-1,1],[1,-1],[1,1],[-1,0],[1,0],[0,-1],[0,1]]};for(const[dr,dc]of ds[t]){let nr=r+dr,nc=c+dc;while(inB(nr,nc)){const ni=nr*8+nc;if(b[ni]){if(col(b[ni])!==cl)moves.push(ni);break;}moves.push(ni);nr+=dr;nc+=dc;}}}
+      return moves;
+    }
+    function kingPos(b,cl){return b.findIndex(p=>p===cl+'K')}
+    function attacked(b,cl,sq,ep){for(let i=0;i<64;i++)if(col(b[i])===cl&&rawMoves(b,i,ep).includes(sq))return true;return false;}
+    function inCheck(b,cl,ep){return attacked(b,cl==='w'?'b':'w',kingPos(b,cl),ep)}
+    function legalMoves(b,idx,cs,ep){
+      const p=b[idx];if(!p)return[];const cl=col(p),t=typ(p);
+      let moves=rawMoves(b,idx,ep);
+      if(t==='K'){if(cl==='w'&&cs.wK&&!inCheck(b,'w',ep)){if(cs.wKR&&!b[61]&&!b[62]&&!attacked(b,'b',61,ep)&&!attacked(b,'b',62,ep))moves.push(62);if(cs.wQR&&!b[57]&&!b[58]&&!b[59]&&!attacked(b,'b',59,ep)&&!attacked(b,'b',58,ep))moves.push(58);}if(cl==='b'&&cs.bK&&!inCheck(b,'b',ep)){if(cs.bKR&&!b[5]&&!b[6]&&!attacked(b,'w',5,ep)&&!attacked(b,'w',6,ep))moves.push(6);if(cs.bQR&&!b[1]&&!b[2]&&!b[3]&&!attacked(b,'w',2,ep)&&!attacked(b,'w',3,ep))moves.push(2);}}
+      return moves.filter(to=>{const nb=[...b];nb[to]=nb[idx];nb[idx]=null;if(t==='P'&&ep===to)nb[to+(cl==='w'?8:-8)]=null;return!inCheck(nb,cl,null);});
+    }
+
+    function applyMove(b,from,to,cs,ep,promoType){
+      const nb=[...b],p=nb[from],cl=col(p),t=typ(p);
+      let nep=null,ncs={...cs},cap=nb[to]||null;
+      if(t==='P'&&to===ep){cap=nb[to+(cl==='w'?8:-8)];nb[to+(cl==='w'?8:-8)]=null;}
+      nb[to]=p;nb[from]=null;
+      if(t==='P'&&Math.abs(to-from)===16)nep=(from+to)/2;
+      if(t==='K'){if(cl==='w'){ncs.wK=false;ncs.wQR=false;ncs.wKR=false;}else{ncs.bK=false;ncs.bQR=false;ncs.bKR=false;}if(to===62&&from===60){nb[61]=nb[63];nb[63]=null;}if(to===58&&from===60){nb[59]=nb[56];nb[56]=null;}if(to===6&&from===4){nb[5]=nb[7];nb[7]=null;}if(to===2&&from===4){nb[3]=nb[0];nb[0]=null;}}
+      if(t==='R'){if(from===63)ncs.wKR=false;if(from===56)ncs.wQR=false;if(from===7)ncs.bKR=false;if(from===0)ncs.bQR=false;}
+      if(t==='P'&&(to<8||to>=56))nb[to]=cl+(promoType||'Q');
+      return{b:nb,cs:ncs,ep:nep,cap};
+    }
+
+    function doMove(from, to, promoType, fromOpponent) {
+      const p=board[from],cl=col(p);
+      const res=applyMove(board,from,to,castling,enPassant,promoType);
+      if(res.cap){if(cl==='w')capB.push(res.cap);else capW.push(res.cap);}
+      board=res.b;castling=res.cs;enPassant=res.ep;lastMove=[from,to];
+      turn=turn==='w'?'b':'w';sel=null;poss=[];
+      document.getElementById('promo-overlay').style.display='none';
+      checkEndGame();
+      render();
+    }
+
+    function checkEndGame(){
+      const allMoves=[];
+      for(let i=0;i<64;i++)if(col(board[i])===turn)legalMoves(board,i,castling,enPassant).forEach(t=>allMoves.push(t));
+      if(allMoves.length===0){
+        gameOver=true;
+        const chk=inCheck(board,turn,enPassant);
+        document.getElementById('status-text').textContent=chk?(turn==='w'?'Échec et mat — les Noirs gagnent !':'Échec et mat — les Blancs gagnent !'):'Pat — match nul !';
+      }
+    }
+
+    function showPromo(from,to){
+      const pieces=[['Q','♕'],['R','♖'],['B','♗'],['N','♘']];
+      const box=document.getElementById('promo-pieces');
+      box.innerHTML='';
+      for(const[t,sym]of pieces){
+        const btn=document.createElement('div');
+        btn.className='promo-btn';btn.textContent=sym;
+        btn.onclick=()=>{
+          socket.emit('move',{gameId,from,to,promoType:t});
+          doMove(from,to,t,false);
+        };
+        box.appendChild(btn);
+      }
+      document.getElementById('promo-overlay').style.display='flex';
+    }
+
+    function clickCell(idx){
+      if(gameOver||turn!==myColor)return;
+      if(document.getElementById('promo-overlay').style.display==='flex')return;
+      const p=board[idx];
+      if(sel===null){if(!p||col(p)!==myColor)return;sel=idx;poss=legalMoves(board,idx,castling,enPassant);render();return;}
+      if(sel===idx){sel=null;poss=[];render();return;}
+      if(col(p)===myColor){sel=idx;poss=legalMoves(board,idx,castling,enPassant);render();return;}
+      if(!poss.includes(idx)){sel=null;poss=[];render();return;}
+      const t=typ(board[sel]),cl=col(board[sel]);
+      const isPromo=t==='P'&&((cl==='w'&&idx<8)||(cl==='b'&&idx>=56));
+      if(isPromo&&cl===myColor){showPromo(sel,idx);return;}
+      socket.emit('move',{gameId,from:sel,to:idx});
+      doMove(sel,idx,undefined,false);
+    }
+
+    function render(){
+      const rankDiv=document.getElementById('ranks');
+      const filesDiv=document.getElementById('files');
+      rankDiv.innerHTML='';filesDiv.innerHTML='';
+      const rankLabels=myColor==='w'?['8','7','6','5','4','3','2','1']:['1','2','3','4','5','6','7','8'];
+      const fileLabels=myColor==='w'?['a','b','c','d','e','f','g','h']:['h','g','f','e','d','c','b','a'];
+      rankLabels.forEach(l=>{const s=document.createElement('span');s.textContent=l;rankDiv.appendChild(s);});
+      fileLabels.forEach(l=>{const s=document.createElement('span');s.textContent=l;filesDiv.appendChild(s);});
+
+      const bdiv=document.getElementById('board');bdiv.innerHTML='';
+      const indices=myColor==='w'?[...Array(64).keys()]:[...Array(64).keys()].reverse();
+      indices.forEach(i=>{
+        const cell=document.createElement('div');
+        const r=Math.floor(i/8),c=i%8;
+        cell.className='cell '+((r+c)%2===0?'light':'dark');
+        if(sel===i)cell.classList.add('selected');
+        if(lastMove.includes(i)&&sel!==i)cell.classList.add(i===lastMove[0]?'last-from':'last-to');
+        const p=board[i];
+        if(p&&typ(p)==='K'&&inCheck(board,col(p),enPassant))cell.classList.add('check-cell');
+        if(p)cell.textContent=SYM[p];
+        if(poss.includes(i)){const dot=document.createElement('div');dot.className='dot-overlay '+(p?'dot-capture':'dot-empty');cell.appendChild(dot);}
+        cell.onclick=()=>clickCell(i);
+        bdiv.appendChild(cell);
+      });
+
+      const dot=document.getElementById('turn-dot');
+      if(!gameOver){
+        dot.style.background=turn==='w'?'#fff':'#222';
+        dot.style.border='1.5px solid '+(turn==='w'?'#999':'#555');
+        document.getElementById('status-text').textContent=turn===myColor?'Votre tour':'Tour de '+opponent;
+      }
+      document.getElementById('cap-b').textContent=capB.map(p=>SYM[p]).join('');
+      document.getElementById('cap-w').textContent=capW.map(p=>SYM[p]).join('');
+    }
+
+    render();
+  </script>
+</body>
+</html>

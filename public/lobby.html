@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Lobby — Échecs Online</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="lobby-container">
+    <div class="lobby-header">
+      <h1>♟ Échecs Online</h1>
+      <div>
+        <span id="welcome"></span>
+        <button onclick="logout()">Déconnexion</button>
+      </div>
+    </div>
+
+    <div class="lobby-grid">
+      <div class="card">
+        <h2>Jouer</h2>
+        <button onclick="joinRandom()" id="btn-random">Partie aléatoire</button>
+        <p id="waiting-msg" style="display:none; color:#888;">En attente d'un adversaire...</p>
+      </div>
+
+      <div class="card">
+        <h2>Amis</h2>
+        <div style="display:flex; gap:8px; margin-bottom:12px;">
+          <input type="text" id="friend-input" placeholder="Pseudo d'un ami" style="flex:1;" />
+          <button onclick="addFriend()">Ajouter</button>
+        </div>
+        <p class="msg" id="friend-msg"></p>
+        <ul id="friend-list"></ul>
+      </div>
+    </div>
+
+    <div id="invite-banner" style="display:none;" class="invite-banner">
+      <span id="invite-text"></span>
+      <button onclick="acceptInvite()">Accepter</button>
+      <button onclick="declineInvite()">Refuser</button>
+    </div>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const token = localStorage.getItem('token');
+    const username = localStorage.getItem('username');
+    if (!token) window.location.href = 'index.html';
+
+    document.getElementById('welcome').textContent = 'Bonjour, ' + username + ' !';
+
+    const socket = io({ auth: { token } });
+    let pendingInvite = null;
+
+    socket.on('waiting', () => {
+      document.getElementById('waiting-msg').style.display = 'block';
+      document.getElementById('btn-random').disabled = true;
+    });
+
+    socket.on('invited', ({ from, fromId }) => {
+      pendingInvite = { from, fromId };
+      document.getElementById('invite-text').textContent = from + ' vous invite à jouer !';
+      document.getElementById('invite-banner').style.display = 'flex';
+    });
+
+    socket.on('game-start', ({ gameId, color, opponent }) => {
+      localStorage.setItem('gameId', gameId);
+      localStorage.setItem('color', color);
+      localStorage.setItem('opponent', opponent);
+      window.location.href = 'game.html';
+    });
+
+    socket.on('friend-offline', () => {
+      alert('Cet ami n\'est pas connecté.');
+    });
+
+    function acceptInvite() {
+      if (!pendingInvite) return;
+      socket.emit('accept-invite', { fromId: pendingInvite.fromId, fromName: pendingInvite.from });
+      document.getElementById('invite-banner').style.display = 'none';
+    }
+
+    function declineInvite() {
+      pendingInvite = null;
+      document.getElementById('invite-banner').style.display = 'none';
+    }
+
+    function joinRandom() {
+      socket.emit('join-random');
+    }
+
+    async function addFriend() {
+      const friendName = document.getElementById('friend-input').value.trim();
+      const res = await fetch('/add-friend', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token, friendName })
+      });
+      const data = await res.json();
+      document.getElementById('friend-msg').textContent = data.ok ? 'Ami ajouté !' : data.msg;
+      if (data.ok) loadFriends();
+    }
+
+    async function loadFriends() {
+      const res = await fetch('/friends', {
+        headers: { Authorization: token }
+      });
+      const data = await res.json();
+      const list = document.getElementById('friend-list');
+      list.innerHTML = '';
+      if (!data.friends || data.friends.length === 0) {
+        list.innerHTML = '<li style="color:#888;">Aucun ami pour l\'instant</li>';
+        return;
+      }
+      data.friends.forEach(f => {
+        const li = document.createElement('li');
+        li.className = 'friend-item';
+        li.innerHTML = `
+          <span class="dot ${f.online ? 'online' : 'offline'}"></span>
+          <span>${f.username}</span>
+          ${f.online ? `<button onclick="inviteFriend('${f.username}')">Inviter</button>` : '<span class="offline-txt">Hors ligne</span>'}
+        `;
+        list.appendChild(li);
+      });
+    }
+
+    function inviteFriend(friendName) {
+      socket.emit('invite-friend', { friendName });
+    }
+
+    function logout() {
+      localStorage.clear();
+      window.location.href = 'index.html';
+    }
+
+    loadFriends();
+    setInterval(loadFriends, 5000);
+  </script>
+</body>
+</html>

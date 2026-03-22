@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Échecs Online</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="auth-container">
+    <h1>♟ Échecs Online</h1>
+
+    <div id="form-login" class="card">
+      <h2>Connexion</h2>
+      <input type="text" id="login-user" placeholder="Pseudo" />
+      <input type="password" id="login-pass" placeholder="Mot de passe" />
+      <button onclick="login()">Se connecter</button>
+      <p class="switch">Pas de compte ? <a href="#" onclick="toggle()">S'inscrire</a></p>
+      <p class="msg" id="login-msg"></p>
+    </div>
+
+    <div id="form-register" class="card" style="display:none">
+      <h2>Inscription</h2>
+      <input type="text" id="reg-user" placeholder="Pseudo" />
+      <input type="password" id="reg-pass" placeholder="Mot de passe" />
+      <button onclick="register()">Créer le compte</button>
+      <p class="switch">Déjà un compte ? <a href="#" onclick="toggle()">Se connecter</a></p>
+      <p class="msg" id="reg-msg"></p>
+    </div>
+  </div>
+
+  <script>
+    function toggle() {
+      const l = document.getElementById('form-login');
+      const r = document.getElementById('form-register');
+      l.style.display = l.style.display === 'none' ? 'block' : 'none';
+      r.style.display = r.style.display === 'none' ? 'block' : 'none';
+    }
+
+    async function login() {
+      const username = document.getElementById('login-user').value.trim();
+      const password = document.getElementById('login-pass').value;
+      const res = await fetch('/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password })
+      });
+      const data = await res.json();
+      if (data.ok) {
+        localStorage.setItem('token', data.token);
+        localStorage.setItem('username', data.username);
+        window.location.href = 'lobby.html';
+      } else {
+        document.getElementById('login-msg').textContent = data.msg;
+      }
+    }
+
+    async function register() {
+      const username = document.getElementById('reg-user').value.trim();
+      const password = document.getElementById('reg-pass').value;
+      const res = await fetch('/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password })
+      });
+      const data = await res.json();
+      if (data.ok) {
+        document.getElementById('reg-msg').textContent = 'Compte créé ! Connectez-vous.';
+        toggle();
+      } else {
+        document.getElementById('reg-msg').textContent = data.msg;
+      }
+    }
+  </script>
+</body>
+</html>
