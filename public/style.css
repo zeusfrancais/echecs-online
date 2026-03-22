@@ -184,6 +184,7 @@ button:disabled { background: #444; cursor: default; }
   cursor: pointer;
 }
 .light { background: #f0f0e0; }
+.cell { -webkit-text-stroke: 1px #333; }
 .dark  { background: #2d6a2d; }
 .selected   { background: #e8e832 !important; }
 .last-from  { background: #c8c820 !important; }

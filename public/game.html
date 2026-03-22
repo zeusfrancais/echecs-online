@@ -48,9 +48,10 @@
 
     const socket = io({ auth: { token } });
 
-    socket.on('opponent-move', ({ from, to, promoType }) => {
-      doMove(from, to, promoType, true);
-    });
+   socket.on('opponent-move', ({ from, to, promoType }) => {
+  console.log('coup reçu', from, to);
+  doMove(from, to, promoType, true);
+});
 
     const SYM={wK:'♔',wQ:'♕',wR:'♖',wB:'♗',wN:'♘',wP:'♙',bK:'♚',bQ:'♛',bR:'♜',bB:'♝',bN:'♞',bP:'♟'};
     const INIT=['bR','bN','bB','bQ','bK','bB','bN','bR','bP','bP','bP','bP','bP','bP','bP','bP',null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,'wP','wP','wP','wP','wP','wP','wP','wP','wR','wN','wB','wQ','wK','wB','wN','wR'];
