@@ -94,15 +94,15 @@
     }
 
     function doMove(from, to, promoType, fromOpponent) {
-      const p=board[from],cl=col(p);
-      const res=applyMove(board,from,to,castling,enPassant,promoType);
-      if(res.cap){if(cl==='w')capB.push(res.cap);else capW.push(res.cap);}
-      board=res.b;castling=res.cs;enPassant=res.ep;lastMove=[from,to];
-      turn=turn==='w'?'b':'w';sel=null;poss=[];
-      document.getElementById('promo-overlay').style.display='none';
-      checkEndGame();
-      render();
-    }
+  const p=board[from],cl=col(p);
+  const res=applyMove(board,from,to,castling,enPassant,promoType);
+  if(res.cap){if(cl==='w')capB.push(res.cap);else capW.push(res.cap);}
+  board=res.b;castling=res.cs;enPassant=res.ep;lastMove=[from,to];
+  turn=turn==='w'?'b':'w';sel=null;poss=[];
+  document.getElementById('promo-overlay').style.display='none';
+  checkEndGame();
+  render();
+}
 
     function checkEndGame(){
       const allMoves=[];
