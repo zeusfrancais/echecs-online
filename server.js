@@ -7,7 +7,11 @@ const path = require('path');
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server);
+const io = new Server(server, {
+  transports: ['websocket'],
+  pingTimeout: 60000,
+  pingInterval: 25000
+});
 
 const SECRET = 'echecs_secret_key';
 app.use(express.json());
