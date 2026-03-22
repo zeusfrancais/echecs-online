@@ -48,8 +48,16 @@
 
     const socket = io({ auth: { token } });
 
-   socket.on('opponent-move', ({ from, to, promoType }) => {
-  console.log('coup reçu', from, to);
+   socket.on('connect', () => {
+  console.log('connecté socket id:', socket.id);
+});
+
+socket.on('disconnect', () => {
+  console.log('déconnecté!');
+});
+
+socket.on('opponent-move', ({ from, to, promoType }) => {
+  console.log('coup reçu!', from, to);
   doMove(from, to, promoType, true);
 });
 
